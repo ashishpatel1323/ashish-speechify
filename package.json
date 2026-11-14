@@ -1,0 +1,32 @@
+{
+  "name": "ashish-speechify",
+  "version": "0.1.0",
+  "description": "Chrome extension that reads pages aloud with an on-device natural voice",
+  "scripts": {
+    "build": "node build.mjs",
+    "build:test": "node build.mjs --test",
+    "typecheck": "tsc --noEmit",
+    "zip": "node build.mjs && cd dist && zip -qr ../ashish-speechify.zip .",
+    "test": "node build.mjs --test && node test/e2e.cjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ashishpatel1323/ashish-speechify.git"
+  },
+  "license": "GPL-3.0-or-later",
+  "bugs": {
+    "url": "https://github.com/ashishpatel1323/ashish-speechify/issues"
+  },
+  "homepage": "https://github.com/ashishpatel1323/ashish-speechify#readme",
+  "dependencies": {
+    "@mozilla/readability": "^0.6.0",
+    "kokoro-js": "^1.2.1"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.3.7",
+    "esbuild": "^0.28.2",
+    "typescript": "^7.0.2"
+  },
+  "private": true,
+  "type": "module"
+}

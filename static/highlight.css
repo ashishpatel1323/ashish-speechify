@@ -1,0 +1,4 @@
+/* Read-aloud highlights on the page (CSS Custom Highlight API) */
+::highlight(ash-speechify-sentence) { background-color: rgba(247, 201, 72, 0.28); color: inherit; }
+::highlight(ash-speechify-word) { background-color: rgba(247, 201, 72, 0.95); color: #111; }
+::highlight(ash-speechify-tap) { background-color: #f7c948; color: #111; }

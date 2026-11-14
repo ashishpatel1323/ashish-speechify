@@ -1,0 +1,37 @@
+name: Build extension
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm run zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ashish-speechify
+          path: dist/
+      - name: Publish as the latest release
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: "ashish-speechify · build ${{ github.run_number }} · ${{ github.sha }}"
+          make_latest: true
+          files: ashish-speechify.zip
+          body: |
+            Download **ashish-speechify.zip**, unzip it, open `chrome://extensions`, turn on Developer mode and choose **Load unpacked** on the unzipped folder.
+            To update, unzip over the same folder and press the reload icon on the extension's card.
