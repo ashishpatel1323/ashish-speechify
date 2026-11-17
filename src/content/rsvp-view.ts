@@ -1,6 +1,7 @@
 /**
- * Speed read overlay: one word at a time at a fixed spot, with a red focus letter, over the page.
- * The same controls and keys as Feeder Web's speed reading (components/Rsvp.tsx).
+ * Speed read dock: one word at a time at a fixed spot, with a red focus letter, in a bar along
+ * the bottom of the page, while the page above highlights the word and scrolls along (like read
+ * aloud does). The same controls, keys and timing as Feeder Web's speed reading (components/Rsvp.tsx).
  */
 import {
   focusIndex,
@@ -31,49 +32,49 @@ const svg = (n: string) => `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[
 export const RSVP_CSS = `
 .rsvp {
   --bg: #ffffff; --bg2: #f4f5f7; --fg: #1b1d22; --fg2: #4a4f5a; --fg3: #7a808c; --line: #e2e4e9;
-  --pivot: #d1342f; --accent: #f2b705; --tap: rgba(247,201,72,.55);
-  position: fixed; inset: 0; z-index: 2147483647; display: flex; flex-direction: column;
+  --pivot: #d1342f; --accent: #f2b705;
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 2147483647;
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 8px 16px 10px; box-sizing: border-box;
   background: var(--bg); color: var(--fg); outline: none;
-  font: 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  border-top: 1px solid var(--line); border-radius: 16px 16px 0 0;
+  box-shadow: 0 -8px 28px rgba(0,0,0,.18);
+  font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 @media (prefers-color-scheme: dark) {
-  .rsvp { --bg: #111317; --bg2: #181b20; --fg: #f2f3f5; --fg2: #c3c7cf; --fg3: #8b919c; --line: #2a2e35; --pivot: #ff8a80; --accent: #f7c948; }
+  .rsvp { --bg: #16181d; --bg2: #1d2026; --fg: #f2f3f5; --fg2: #c3c7cf; --fg3: #8b919c; --line: #2a2e35; --pivot: #ff8a80; --accent: #f7c948; }
 }
 .rsvp button { font: inherit; color: inherit; background: transparent; border: 0; cursor: pointer; }
-.rsvp .ib { width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; }
+.rsvp .ib { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; }
 .rsvp .ib:hover, .rsvp .chip:hover { background: rgba(127,127,127,.15); }
-.rsvp .ib svg { width: 22px; height: 22px; fill: currentColor; }
-.rsvp-bar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--line); }
-.rsvp-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
-.rsvp-left { flex: none; font-size: 13px; color: var(--fg3); font-variant-numeric: tabular-nums; }
-.rsvp-stage { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 16px; cursor: pointer; user-select: none; }
-.rsvp-frame { width: min(100%, 640px); }
-.rsvp-guide { position: relative; height: 14px; border: 0 solid var(--line); }
+.rsvp .ib svg { width: 20px; height: 20px; fill: currentColor; }
+.rsvp-stage { width: 100%; display: flex; justify-content: center; cursor: pointer; user-select: none; }
+.rsvp-frame { width: min(100%, 560px); }
+.rsvp-guide { position: relative; height: 8px; border: 0 solid var(--line); }
 .rsvp-guide.top { border-top-width: 2px; }
 .rsvp-guide.bottom { border-bottom-width: 2px; }
-.rsvp-guide::after { content: ''; position: absolute; left: 40%; width: 2px; height: 10px; background: var(--fg3); }
+.rsvp-guide::after { content: ''; position: absolute; left: 40%; width: 2px; height: 6px; background: var(--fg3); }
 .rsvp-guide.top::after { top: 0; }
 .rsvp-guide.bottom::after { bottom: 0; }
 .rsvp-word {
   display: grid; grid-template-columns: 2fr auto 3fr; align-items: baseline;
-  font-size: clamp(30px, 8vw, 54px); font-weight: 500; line-height: 1.5; white-space: pre; color: var(--fg);
+  font-size: clamp(26px, 4.5vw, 40px); font-weight: 500; line-height: 1.35; white-space: pre; color: var(--fg);
 }
 .rsvp-l { text-align: right; overflow: hidden; }
 .rsvp-pivot { color: var(--pivot); font-weight: 700; }
 .rsvp-r { text-align: left; overflow: hidden; }
-.rsvp-hint, .rsvp-empty { color: var(--fg3); text-align: center; margin: 12px 0 0; font-size: 13px; }
-.rsvp-context { max-width: 640px; margin: 20px 0 0; color: var(--fg2); line-height: 1.6; text-align: center; cursor: auto; }
-.rsvp-context .current { background: var(--tap); color: var(--fg); border-radius: 3px; }
-.rsvp-controls { border-top: 1px solid var(--line); background: var(--bg2); padding: 6px 16px 12px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
-.rsvp-progress { width: 100%; accent-color: var(--accent); }
-.rsvp-buttons { display: flex; align-items: center; gap: 4px; }
-.rsvp .play { width: 52px; height: 52px; border-radius: 50%; background: var(--accent); color: #16181d; display: grid; place-items: center; }
-.rsvp .play svg { width: 28px; height: 28px; fill: currentColor; }
-.rsvp-speed { display: flex; align-items: center; gap: 8px; width: min(100%, 420px); }
+.rsvp-empty { color: var(--fg3); text-align: center; margin: 8px 0; }
+.rsvp-progress { width: min(100%, 900px); accent-color: var(--accent); margin: 4px 0 0; }
+.rsvp-row { width: min(100%, 900px); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.rsvp-buttons { display: flex; align-items: center; gap: 2px; }
+.rsvp .play { width: 44px; height: 44px; border-radius: 50%; background: var(--accent); color: #16181d; display: grid; place-items: center; }
+.rsvp .play svg { width: 24px; height: 24px; fill: currentColor; }
+.rsvp-speed { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 220px; max-width: 380px; }
 .rsvp-speed input { flex: 1; min-width: 0; accent-color: var(--accent); }
-.rsvp .chip { min-width: 36px; height: 32px; border-radius: 8px; font-size: 18px; background: rgba(127,127,127,.1); }
-.rsvp-wpm { flex: none; min-width: 72px; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
-.rsvp-keys { font-size: 12px; color: var(--fg3); }
+.rsvp .chip { min-width: 32px; height: 30px; border-radius: 8px; font-size: 17px; background: rgba(127,127,127,.1); }
+.rsvp-wpm { flex: none; min-width: 68px; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+.rsvp-info { display: flex; flex-direction: column; align-items: flex-end; min-width: 120px; font-size: 12px; color: var(--fg3); font-variant-numeric: tabular-nums; }
+.rsvp-info b { color: var(--fg2); font-weight: 600; }
 `
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;')
@@ -84,6 +85,8 @@ export interface RsvpOptions {
   title: string
   wpm: number
   onWpm(wpm: number): void
+  /** Each word as it's shown, by its offset in the text, so the page can follow along. */
+  onWord?(offset: number): void
   /** Called with the offset of the word reached. */
   onClose(offset: number): void
 }
@@ -96,6 +99,7 @@ export class RsvpView {
   private wpm: number
   private shownSincePlay = 0
   private timer: number | null = null
+  private lastShown = -1
   private q = (sel: string) => this.el.querySelector(sel) as HTMLElement
 
   constructor(
@@ -111,22 +115,15 @@ export class RsvpView {
     this.el.setAttribute('role', 'dialog')
     this.el.setAttribute('aria-label', 'Speed read')
     this.el.innerHTML = `
-      <header class="rsvp-bar">
-        <button class="ib" data-a="close" title="Close speed read (Esc)">${svg('close')}</button>
-        <span class="rsvp-title">${esc(opts.title)}</span>
-        <span class="rsvp-left"></span>
-      </header>
-      <div class="rsvp-stage" data-a="toggle">
+      <div class="rsvp-stage" data-a="toggle" title="Click to play or pause">
         <div class="rsvp-frame">
           <div class="rsvp-guide top"></div>
           <div class="rsvp-word"><span class="rsvp-l"></span><span class="rsvp-pivot"></span><span class="rsvp-r"></span></div>
           <div class="rsvp-guide bottom"></div>
         </div>
-        <p class="rsvp-context"></p>
-        <p class="rsvp-hint"></p>
       </div>
-      <div class="rsvp-controls">
-        <input class="rsvp-progress" type="range" min="0" aria-label="Position" />
+      <input class="rsvp-progress" type="range" min="0" aria-label="Position" />
+      <div class="rsvp-row">
         <div class="rsvp-buttons">
           <button class="ib" data-a="sentence" title="Back one sentence (←)">${svg('replay')}</button>
           <button class="ib" data-a="prev" title="Back one word (Shift ←)">${svg('prev')}</button>
@@ -139,11 +136,11 @@ export class RsvpView {
           <button class="chip" data-a="faster" title="Faster (↑)">+</button>
           <span class="rsvp-wpm"></span>
         </div>
-        <span class="rsvp-keys">Space play/pause · ← → move · ↑ ↓ speed · Esc close</span>
+        <div class="rsvp-info"><b class="rsvp-hint"></b><span class="rsvp-left"></span></div>
+        <button class="ib" data-a="close" title="Close speed read (Esc)">${svg('close')}</button>
       </div>`
     if (!this.words.length) {
-      this.q('.rsvp-frame').style.display = 'none'
-      this.q('.rsvp-hint').textContent = "There's no text to speed read here."
+      this.q('.rsvp-stage').innerHTML = `<p class="rsvp-empty">There's no text to speed read here.</p>`
     }
     this.el.addEventListener('click', (e) => {
       const a = (e.target as Element).closest<HTMLElement>('[data-a]')?.dataset.a
@@ -257,7 +254,7 @@ export class RsvpView {
 
   private render() {
     const word = this.words[this.index]
-    if (word) {
+    if (word && this.q('.rsvp-l')) {
       const focus = focusIndex(word.text)
       const len = Array.from(word.text.slice(focus))[0]?.length ?? 1
       this.q('.rsvp-l').textContent = word.text.slice(0, focus)
@@ -273,23 +270,27 @@ export class RsvpView {
     if (this.words.length) {
       const mins = minutesLeft(this.words, this.index, this.wpm)
       this.q('.rsvp-left').textContent = mins < 1 ? `${Math.max(1, Math.round(mins * 60))} s left` : `${Math.round(mins)} min left`
-      this.q('.rsvp-hint').textContent = this.playing ? '' : this.done ? 'Finished' : 'Paused · click to continue'
+      this.q('.rsvp-hint').textContent = this.playing ? 'Speed reading' : this.done ? 'Finished' : 'Paused'
     }
-    // When paused, show the sentence around the word for context
-    const ctx = this.q('.rsvp-context')
-    if (this.playing || !this.words.length) {
-      ctx.innerHTML = ''
-      return
+    if (word && this.index !== this.lastShown) {
+      this.lastShown = this.index
+      this.opts.onWord?.(word.start)
     }
-    const start = sentenceStartBefore(this.words, this.index + 1)
-    let end = this.index
-    while (end < this.words.length - 1 && !this.words[end].paragraphEnd && !/[.!?…]["'”’)\]]*$/.test(this.words[end].text)) end++
-    const from = Math.max(start, this.index - 30)
-    const to = Math.min(end, this.index + 30)
-    ctx.innerHTML = this.words
-      .slice(from, to + 1)
-      .map((w, i) => (from + i === this.index ? `<span class="current">${esc(w.text)}</span> ` : `${esc(w.text)} `))
-      .join('')
+  }
+
+  /** Jumps to the word at or after `offset` in the text (a click on the page). */
+  jumpToOffset(offset: number) {
+    this.jump(wordIndexAt(this.words, offset))
+  }
+
+  /** Offset in the text of the word on screen. */
+  get currentOffset() {
+    return this.words[this.index]?.start ?? this.opts.startOffset
+  }
+
+  /** Height of the dock, so the page can keep the current line above it. */
+  get height() {
+    return this.el.getBoundingClientRect().height
   }
 
   close() {

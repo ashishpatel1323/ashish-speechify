@@ -92,6 +92,8 @@ export class Reader {
   voice = ''
   gpu = false
   autoScroll = true
+  /** Height of whatever covers the bottom of the window (the player, the speed read dock). */
+  bottomInset = 140
   onSentence: ((i: number) => void) | null = null
 
   state: ReaderState = { status: 'idle', sentence: 0, sentences: 0, rate: 1, engine: null, error: null }
@@ -184,6 +186,31 @@ export class Reader {
     this.autoScroll = keepScroll
   }
 
+  /**
+   * Highlights the word starting at `offset` and its sentence, and keeps them in view above
+   * `bottomInset` (speed read follows along on the page this way).
+   */
+  followAt(offset: number) {
+    if (!this.sentences.length) return
+    const i = this.sentenceIndexAt(offset)
+    if (this.state.status === 'idle') this.set({ status: 'paused' })
+    if (i !== this.state.sentence || !highlights()?.has(HL_SENTENCE)) {
+      this.set({ sentence: i })
+      this.highlightSentence(i)
+    }
+    let end = offset
+    while (end < this.text.length && !/\s/.test(this.text[end])) end++
+    this.highlightWord(offset, end)
+    // A long sentence can run off screen: follow the word too
+    if (!this.autoScroll || performance.now() - this.lastUserScroll < 5000) return
+    const r = this.rangeFor(offset, end)
+    if (!r) return
+    const rect = r.getBoundingClientRect()
+    if (rect.top < 40 || rect.bottom > innerHeight - this.bottomInset - 16) {
+      scrollBy({ top: rect.top - (innerHeight - this.bottomInset) * 0.35, behavior: 'smooth' })
+    }
+  }
+
   /** Moves to the sentence holding `offset` without speaking, and scrolls it into view. */
   moveTo(offset: number) {
     if (!this.sentences.length) return
@@ -195,7 +222,7 @@ export class Reader {
     if (r) {
       this.highlightSentence(i)
       const rect = r.getBoundingClientRect()
-      scrollBy({ top: rect.top - innerHeight * 0.35, behavior: 'smooth' })
+      if (rect.top < 40 || rect.bottom > innerHeight - this.bottomInset) scrollBy({ top: rect.top - innerHeight * 0.35, behavior: 'smooth' })
     }
   }
 
@@ -283,8 +310,8 @@ export class Reader {
     // Keep it in view, unless the reader scrolled away just now
     if (!this.autoScroll || performance.now() - this.lastUserScroll < 5000) return
     const rect = r.getBoundingClientRect()
-    if (rect.top < 60 || rect.bottom > innerHeight - 140) {
-      scrollBy({ top: rect.top - innerHeight * 0.35, behavior: 'smooth' })
+    if (rect.top < 60 || rect.bottom > innerHeight - this.bottomInset) {
+      scrollBy({ top: rect.top - (innerHeight - this.bottomInset) * 0.35, behavior: 'smooth' })
     }
   }
 

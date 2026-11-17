@@ -21,6 +21,7 @@ function main() {
   let roots: Element[] = []
   let pillOffset = -1
   let rsvp: RsvpView | null = null
+  let restorePad: (() => void) | null = null
   const remap = (old: Text, pieces: { node: Text; from: number }[]) => reader.remap(old, pieces)
 
   const setFastRead = (on: boolean) => {
@@ -44,6 +45,7 @@ function main() {
     player.hidePill()
     reader.showTapWord(null)
     const from = offset ?? (reader.state.status === 'idle' ? 0 : reader.currentOffset)
+    reader.bottomInset = 200
     rsvp = new RsvpView(player.root, {
       text: reader.fullText,
       startOffset: from,
@@ -53,11 +55,27 @@ function main() {
         if (settings) settings.rsvpWpm = wpm
         void saveSettings({ rsvpWpm: wpm })
       },
+      onWord: (at) => {
+        if (reader.canHighlight) reader.followAt(at)
+      },
       onClose: (reached) => {
         rsvp = null
+        restorePad?.()
+        restorePad = null
+        player?.setHidden(false)
+        reader.bottomInset = 140
         if (reader.canHighlight) reader.moveTo(reached)
       },
     })
+    // The dock replaces the player at the bottom; the page above follows along. Room at the end
+    // of the page lets the last lines scroll up above the dock.
+    player.setHidden(true)
+    reader.bottomInset = rsvp.height + 8
+    const html = document.documentElement
+    const oldPad = html.style.paddingBottom
+    html.style.paddingBottom = `${Math.ceil(rsvp.height)}px`
+    restorePad = () => (html.style.paddingBottom = oldPad)
+    if (reader.canHighlight) reader.followAt(rsvp.currentOffset)
   }
 
   const applySettings = (s: Settings) => {
@@ -164,6 +182,11 @@ function main() {
       if (!window.getSelection()?.isCollapsed) return
       const offset = reader.offsetAtPoint(e.clientX, e.clientY)
       if (offset < 0) return
+      if (rsvp) {
+        // Speed reading: carry on from the clicked word
+        rsvp.jumpToOffset(offset)
+        return
+      }
       if (reader.state.status === 'playing' || reader.state.status === 'loading') {
         reader.play(offset)
         player!.hidePill()

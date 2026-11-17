@@ -247,6 +247,11 @@ export class Player {
     else msg.textContent = ''
   }
 
+  /** Hides the bar while the speed read dock takes its place. */
+  setHidden(hidden: boolean) {
+    ;(this.root.querySelector('.bar') as HTMLElement).style.display = hidden ? 'none' : ''
+  }
+
   setFastRead(on: boolean) {
     this.els.fastread.setAttribute('aria-pressed', String(on))
   }
