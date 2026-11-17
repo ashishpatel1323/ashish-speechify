@@ -28,6 +28,10 @@ export interface Settings {
   clickToRead: boolean
   /** Scroll the page to keep the sentence being read in view. */
   autoScroll: boolean
+  /** Bold the start of every word on the page being read. */
+  fastRead: boolean
+  /** Speed reading pace, in words per minute. */
+  rsvpWpm: number
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -36,6 +40,8 @@ export const DEFAULT_SETTINGS: Settings = {
   gpu: false,
   clickToRead: true,
   autoScroll: true,
+  fastRead: false,
+  rsvpWpm: 300,
 }
 
 export async function loadSettings(): Promise<Settings> {
@@ -84,6 +90,6 @@ export type FromEngine =
 /** Background -> page: start reading. */
 export interface StartMessage {
   type: 'start'
-  mode: 'auto' | 'page' | 'selection' | 'toggle'
+  mode: 'auto' | 'page' | 'selection' | 'toggle' | 'fast-read' | 'speed-read'
   text?: string
 }

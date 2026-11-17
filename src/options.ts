@@ -31,7 +31,14 @@ async function init() {
   speechSynthesis.addEventListener('voiceschanged', fillVoices)
   rate.value = String(settings.rate)
   $('rateVal').textContent = `${settings.rate}×`
-  for (const k of ['gpu', 'clickToRead', 'autoScroll'] as const) {
+  const wpm = $<HTMLInputElement>('rsvpWpm')
+  wpm.value = String(settings.rsvpWpm)
+  $('wpmVal').textContent = `${settings.rsvpWpm} wpm`
+  wpm.oninput = () => {
+    $('wpmVal').textContent = `${wpm.value} wpm`
+    void saveSettings({ rsvpWpm: Number(wpm.value) })
+  }
+  for (const k of ['gpu', 'clickToRead', 'autoScroll', 'fastRead'] as const) {
     const box = $<HTMLInputElement>(k)
     box.checked = settings[k]
     box.onchange = () => saveSettings({ [k]: box.checked })

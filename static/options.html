@@ -46,6 +46,8 @@
   <section>
     <h2>Reading</h2>
     <div class="row"><div>Click a sentence to read from there<small>While playing, a click jumps. When paused, a "Read from here" button appears.</small></div><input id="clickToRead" type="checkbox" /></div>
+    <div class="row"><div>Fast read<small>Bold the start of every word on pages you read, so your eyes can skim. Also the <b>Fast read</b> button on the player.</small></div><input id="fastRead" type="checkbox" /></div>
+    <div class="row"><div>Speed read pace <span id="wpmVal"></span><small>Words per minute for <b>Speed read</b> (one word at a time).</small></div><input id="rsvpWpm" type="range" min="100" max="1000" step="25" /></div>
     <div class="row"><div>Follow along<small>Scroll the page to keep the sentence in view (pauses for a few seconds when you scroll yourself).</small></div><input id="autoScroll" type="checkbox" /></div>
   </section>
 
@@ -54,6 +56,7 @@
     <ul>
       <li>Click the toolbar button, or press <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>R</kbd>. Press it again to pause or resume.</li>
       <li>Select text first to read only that, or right-click it and choose <b>Read selection aloud</b> (<kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>).</li>
+      <li><b>Fast read</b> (bold word starts): <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd>. <b>Speed read</b> (one word at a time): <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>V</kbd>. Both are on the player and the right-click menu too.</li>
       <li>Change the shortcuts at <code>chrome://extensions/shortcuts</code>.</li>
     </ul>
   </section>

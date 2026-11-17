@@ -4,7 +4,9 @@
 import { loadSettings, saveSettings, type FromEngine, type Settings, type StartMessage } from '../shared'
 import { indexPage, indexSelection, indexText, type Indexed } from './extract'
 import { Player } from './player'
+import { applyFastRead, fastReadOn, removeFastRead } from './fastread'
 import { Reader } from './reader'
+import { RsvpView } from './rsvp-view'
 
 declare global {
   interface Window {
@@ -18,6 +20,45 @@ function main() {
   let player: Player | null = null
   let roots: Element[] = []
   let pillOffset = -1
+  let rsvp: RsvpView | null = null
+  const remap = (old: Text, pieces: { node: Text; from: number }[]) => reader.remap(old, pieces)
+
+  const setFastRead = (on: boolean) => {
+    // Applying again only bolds text that isn't bold yet (a new selection, say)
+    if (on) applyFastRead(reader.textNodes, remap)
+    if (!on && fastReadOn()) removeFastRead(remap)
+    reader.refreshHighlight()
+    player?.setFastRead(on)
+  }
+
+  const toggleFastRead = () => {
+    const on = !fastReadOn()
+    setFastRead(on)
+    if (settings) settings.fastRead = on
+    void saveSettings({ fastRead: on })
+  }
+
+  const speedRead = (offset?: number) => {
+    if (rsvp || !player) return
+    if (reader.state.status === 'playing' || reader.state.status === 'loading') reader.pause()
+    player.hidePill()
+    reader.showTapWord(null)
+    const from = offset ?? (reader.state.status === 'idle' ? 0 : reader.currentOffset)
+    rsvp = new RsvpView(player.root, {
+      text: reader.fullText,
+      startOffset: from,
+      title: document.title,
+      wpm: settings?.rsvpWpm ?? 300,
+      onWpm: (wpm) => {
+        if (settings) settings.rsvpWpm = wpm
+        void saveSettings({ rsvpWpm: wpm })
+      },
+      onClose: (reached) => {
+        rsvp = null
+        if (reader.canHighlight) reader.moveTo(reached)
+      },
+    })
+  }
 
   const applySettings = (s: Settings) => {
     settings = s
@@ -46,6 +87,7 @@ function main() {
       },
       close: () => {
         reader.stop()
+        setFastRead(false)
         player?.hidePill()
         player?.host.remove()
       },
@@ -55,6 +97,9 @@ function main() {
         reader.showTapWord(null)
         if (pillOffset >= 0) reader.play(pillOffset)
       },
+      speedReadFrom: () => speedRead(pillOffset >= 0 ? pillOffset : undefined),
+      toggleFastRead,
+      speedRead: () => speedRead(),
     })
     document.documentElement.appendChild(player.host)
     reader.subscribe((s) => player?.update(s, reader.voice))
@@ -69,15 +114,27 @@ function main() {
       reader.toggle()
       return
     }
+    // Fast read and speed read work on what's already open, or open the page without speaking
+    const extra = msg.mode === 'fast-read' || msg.mode === 'speed-read'
+    if (extra && isOpen() && reader.hasText) {
+      if (msg.mode === 'fast-read') toggleFastRead()
+      else if (rsvp) rsvp.close()
+      else speedRead()
+      return
+    }
     let indexed: Indexed | null = null
-    if (msg.mode === 'selection' || msg.mode === 'auto' || msg.mode === 'toggle') indexed = indexSelection()
+    if (msg.mode !== 'page') indexed = indexSelection()
     if (!indexed && msg.mode === 'selection' && msg.text) indexed = indexText(msg.text)
     if (!indexed) indexed = indexPage()
     window.getSelection()?.removeAllRanges()
+    rsvp?.close()
     roots = indexed.roots
     ensurePlayer()
     reader.load(indexed)
-    reader.play()
+    setFastRead(!!settings?.fastRead)
+    if (msg.mode === 'fast-read') toggleFastRead()
+    else if (msg.mode === 'speed-read') speedRead()
+    else reader.play()
   }
 
   chrome.runtime.onMessage.addListener((m: StartMessage | FromEngine) => {
@@ -92,6 +149,7 @@ function main() {
     applySettings(next)
     if (changes.voice) reader.setVoice(next.voice)
     if (changes.gpu && reader.usingKokoro) reader.setVoice(next.voice)
+    if (changes.fastRead && isOpen()) setFastRead(next.fastRead)
   })
 
   // Click a sentence: jump there while reading, or offer "Read from here" when paused

@@ -18,6 +18,8 @@ To update, unzip the new release over the same folder and click the reload icon 
 - **Read a selection:** select text, then press the shortcut, or right-click and choose **Read selection aloud** (<kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>).
 - **Player:** a floating bar with previous sentence, play/pause, next sentence, speed −/+, voice picker, settings and close, all visible. Drag it by the dots on the left.
 - **Click to read:** while reading, click any sentence to jump there. When paused, clicking a word shows a **Read from here** button.
+- **Fast read:** the **Fast read** button on the player (or <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd>) bolds the start of every word on the page so your eyes can skim. It works while reading aloud; the highlights and click to read keep lining up, and turning it off puts the page back exactly. Same algorithm as the Feeder apps (a port of [text-vide](https://github.com/Gumball12/text-vide), MIT).
+- **Speed read:** the **Speed read** button (or <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>V</kbd>, or right-click) shows the text one word at a time with a red focus letter, starting at the sentence you're on. Space plays and pauses (pausing shows the sentence for context), ← → move, ↑ ↓ change the pace (100 to 1000 words a minute, remembered), Esc closes and marks where you stopped on the page. When paused, clicking a word also offers **Speed read** next to **Read from here**. Same timing rules as Feeder.
 - **Media keys** (keyboard play/pause, next/previous) work while the natural voice is playing.
 - **Settings** (gear button): default voice and speed, graphics card (WebGPU) mode, click to read, follow along scrolling. Shortcuts can be changed at `chrome://extensions/shortcuts`.
 
@@ -28,7 +30,7 @@ The first time you use the natural voice, the player shows the download progress
 | Part | File | Job |
 | --- | --- | --- |
 | Service worker | `src/background.ts` | Toolbar button, shortcuts, right-click menu; passes messages between pages and the voice engine |
-| Content script | `src/content/` | Finds the text (`extract.ts`), splits sentences and highlights with the CSS Custom Highlight API (`reader.ts`), floating player in a shadow root (`player.ts`) |
+| Content script | `src/content/` | Finds the text (`extract.ts`), splits sentences and highlights with the CSS Custom Highlight API (`reader.ts`), floating player in a shadow root (`player.ts`), fast read (`fastread.ts`), speed read overlay (`rsvp-view.ts`, rules in `src/rsvp.ts`) |
 | Offscreen document | `src/offscreen.ts` | Runs the voice model in a worker, caches generated sentences, plays the audio |
 | Worker | `src/tts.worker.ts` | Kokoro via kokoro-js / ONNX Runtime Web (WebAssembly, or WebGPU) |
 

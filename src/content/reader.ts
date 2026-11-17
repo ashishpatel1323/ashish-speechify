@@ -137,6 +137,68 @@ export class Reader {
     this.set({ sentences: this.sentences.length, sentence: 0, error: null })
   }
 
+  /** All the text being read, as one string. */
+  get fullText() {
+    return this.text
+  }
+
+  /** The page's text nodes being read, in order. */
+  get textNodes(): Text[] {
+    return this.segments.map((s) => s.node)
+  }
+
+  /** Offset where the current sentence starts. */
+  get currentOffset() {
+    return this.sentences[this.state.sentence]?.start ?? 0
+  }
+
+  /**
+   * Follows a text node that was replaced by others (fast read splits and restores nodes).
+   * `pieces[i].from` is where the new node starts in the old node's text (negative when the new
+   * node holds more than the old one).
+   */
+  remap(old: Text, pieces: { node: Text; from: number }[]) {
+    const out: Segment[] = []
+    for (const s of this.segments) {
+      if (s.node !== old) {
+        out.push(s)
+        continue
+      }
+      const segStart = s.nodeStart
+      const segEnd = s.nodeStart + (s.end - s.start)
+      for (const p of pieces) {
+        const a = Math.max(segStart, p.from)
+        const b = Math.min(segEnd, p.from + p.node.data.length)
+        if (b > a) out.push({ node: p.node, nodeStart: a - p.from, start: s.start + (a - segStart), end: s.start + (b - segStart) })
+      }
+    }
+    this.segments = out
+  }
+
+  /** Draws the sentence highlight again (after the page's text nodes changed). */
+  refreshHighlight() {
+    if (this.state.status === 'idle') return
+    const keepScroll = this.autoScroll
+    this.autoScroll = false
+    this.highlightSentence(this.state.sentence)
+    this.autoScroll = keepScroll
+  }
+
+  /** Moves to the sentence holding `offset` without speaking, and scrolls it into view. */
+  moveTo(offset: number) {
+    if (!this.sentences.length) return
+    this.halt()
+    const i = this.sentenceIndexAt(offset)
+    this.set({ status: 'paused', sentence: i })
+    const s = this.sentences[i]
+    const r = s && this.rangeFor(s.start, s.end)
+    if (r) {
+      this.highlightSentence(i)
+      const rect = r.getBoundingClientRect()
+      scrollBy({ top: rect.top - innerHeight * 0.35, behavior: 'smooth' })
+    }
+  }
+
   sentenceText(i: number) {
     const s = this.sentences[i]
     return s ? this.text.slice(s.start, s.end) : ''

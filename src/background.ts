@@ -42,9 +42,13 @@ async function injectAndStart(tab: chrome.tabs.Tab | undefined, message: StartMe
 // Lets automated tests start reading without a toolbar click
 ;(globalThis as Record<string, unknown>).ashStart = injectAndStart
 
-chrome.runtime.onInstalled.addListener(() => {
+chrome.runtime.onInstalled.addListener(async () => {
+  await chrome.contextMenus.removeAll()
   chrome.contextMenus.create({ id: 'read-selection', title: 'Read selection aloud', contexts: ['selection'] })
   chrome.contextMenus.create({ id: 'read-page', title: 'Read this page aloud', contexts: ['page'] })
+  chrome.contextMenus.create({ id: 'speed-read-selection', title: 'Speed read selection', contexts: ['selection'] })
+  chrome.contextMenus.create({ id: 'speed-read', title: 'Speed read this page', contexts: ['page'] })
+  chrome.contextMenus.create({ id: 'fast-read', title: 'Fast read this page (bold word starts)', contexts: ['page'] })
 })
 
 chrome.action.onClicked.addListener((tab) => injectAndStart(tab, { type: 'start', mode: 'toggle' }))
@@ -53,11 +57,15 @@ chrome.commands.onCommand.addListener(async (command, tab) => {
   tab ??= (await chrome.tabs.query({ active: true, currentWindow: true }))[0]
   if (command === 'toggle-reading') await injectAndStart(tab, { type: 'start', mode: 'toggle' })
   if (command === 'read-selection') await injectAndStart(tab, { type: 'start', mode: 'selection' })
+  if (command === 'fast-read') await injectAndStart(tab, { type: 'start', mode: 'fast-read' })
+  if (command === 'speed-read') await injectAndStart(tab, { type: 'start', mode: 'speed-read' })
 })
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (info.menuItemId === 'read-selection') injectAndStart(tab, { type: 'start', mode: 'selection', text: info.selectionText })
   if (info.menuItemId === 'read-page') injectAndStart(tab, { type: 'start', mode: 'page' })
+  if (info.menuItemId === 'speed-read-selection' || info.menuItemId === 'speed-read') injectAndStart(tab, { type: 'start', mode: 'speed-read' })
+  if (info.menuItemId === 'fast-read') injectAndStart(tab, { type: 'start', mode: 'fast-read' })
 })
 
 chrome.runtime.onMessage.addListener(

@@ -4,6 +4,7 @@
  */
 import { KOKORO_VOICES, KOKORO_PREFIX, SPEEDS, isKokoroVoice } from '../shared'
 import type { ReaderState } from './reader'
+import { RSVP_CSS } from './rsvp-view'
 
 const ICONS = {
   play: '<path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/>',
@@ -12,6 +13,8 @@ const ICONS = {
   forward: '<path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/>',
   close: '<path d="M6.4 5 12 10.6 17.6 5 19 6.4 13.4 12 19 17.6 17.6 19 12 13.4 6.4 19 5 17.6 10.6 12 5 6.4z"/>',
   gear: '<path d="M19.4 13a7.6 7.6 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7.4 7.4 0 0 0-1.7-1L15 3.5h-4l-.4 2.5a7.4 7.4 0 0 0-1.7 1l-2.4-1-2 3.4 2 1.6a7.6 7.6 0 0 0 0 2l-2 1.6 2 3.4 2.4-1c.5.4 1.1.7 1.7 1l.4 2.5h4l.4-2.5c.6-.3 1.2-.6 1.7-1l2.4 1 2-3.4-2-1.6zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/>',
+  bold: '<path d="M7 4h6.2a4.3 4.3 0 0 1 3 7.4A4.6 4.6 0 0 1 14 20H7zm3 3v3.6h3a1.8 1.8 0 0 0 0-3.6zm0 6.4V17h3.6a1.8 1.8 0 0 0 0-3.6z"/>',
+  speed: '<path d="M12 4a9 9 0 0 0-7.8 13.5l.3.5h15l.3-.5A9 9 0 0 0 12 4zm0 2a7 7 0 0 1 6.3 10H5.7A7 7 0 0 1 12 6zm4.2 2.4-5.3 4.2a1.6 1.6 0 1 0 2.3 2.1z"/>',
   grip: '<circle cx="9" cy="7" r="1.5"/><circle cx="15" cy="7" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="17" r="1.5"/><circle cx="15" cy="17" r="1.5"/>',
 }
 const svg = (name: keyof typeof ICONS) => `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]}</svg>`
@@ -68,6 +71,16 @@ select option, select optgroup { background: #16181d; color: #f2f3f5; }
 }
 .pill svg { width: 16px; height: 16px; fill: currentColor; }
 .pill.show { display: flex; }
+.pills { position: fixed; z-index: 2147483647; display: none; gap: 6px; }
+.pills.show { display: flex; }
+.pills .pill { position: static; display: flex; }
+.pill.secondary { background: #f7c948; color: #16181d; }
+.pill.secondary svg { fill: #16181d; }
+button.toggle { width: auto; padding: 0 10px; gap: 6px; display: flex; align-items: center; font-weight: 600; font-size: 13px; border-radius: 10px; height: 36px; }
+button.toggle svg { width: 18px; height: 18px; fill: currentColor; }
+button.toggle[aria-pressed="true"] { background: #f7c948; color: #16181d; }
+button.toggle:hover { background: rgba(255,255,255,.09); }
+button.toggle[aria-pressed="true"]:hover { background: #ffd866; }
 @media (prefers-color-scheme: light) {
   .bar { background: #ffffff; color: #1b1d22; box-shadow: 0 10px 34px rgba(0,0,0,.18), 0 0 0 1px rgba(0,0,0,.08); }
   button.icon:hover, .chip:hover, select:hover, .speed button:hover { background: rgba(0,0,0,.06); }
@@ -78,6 +91,8 @@ select option, select optgroup { background: #16181d; color: #f2f3f5; }
   .progress { background: rgba(0,0,0,.08); }
   .progress > div, button.play { background: #f2b705; }
   .msg.err { color: #b91c1c; }
+  button.toggle:hover { background: rgba(0,0,0,.06); }
+  button.toggle[aria-pressed="true"] { background: #f2b705; }
 }
 `
 
@@ -89,21 +104,24 @@ export interface PlayerActions {
   close(): void
   openSettings(): void
   readFrom(): void
+  speedReadFrom(): void
+  toggleFastRead(): void
+  speedRead(): void
 }
 
 const NATURAL_HINT = /natural|neural|online|google|premium|enhanced|siri/i
 
 export class Player {
   readonly host: HTMLElement
-  private root: ShadowRoot
+  readonly root: ShadowRoot
   private els: Record<string, HTMLElement> = {}
   private voice = ''
 
   constructor(private actions: PlayerActions) {
     this.host = document.createElement('ash-speechify-player')
-    this.root = this.host.attachShadow({ mode: 'closed' })
+    this.root = this.host.attachShadow({ mode: 'open' })
     this.root.innerHTML = `
-      <style>${CSS_TEXT}</style>
+      <style>${CSS_TEXT}${RSVP_CSS}</style>
       <div class="bar" role="region" aria-label="Read aloud player">
         <div class="row">
           <div class="grip" data-el="grip" title="Drag to move">${svg('grip')}</div>
@@ -117,6 +135,10 @@ export class Player {
             <button data-el="faster" title="Faster" aria-label="Faster">+</button>
           </div>
           <select data-el="voice" title="Voice" aria-label="Voice"></select>
+          <div class="sep"></div>
+          <button class="toggle" data-el="fastread" aria-pressed="false" title="Fast read: bold the start of every word (Alt+Shift+B)">${svg('bold')}Fast read</button>
+          <button class="toggle" data-el="speedread" title="Speed read: one word at a time (Alt+Shift+V)">${svg('speed')}Speed read</button>
+          <div class="sep"></div>
           <button class="icon" data-el="settings" title="Settings">${svg('gear')}</button>
           <button class="icon" data-el="close" title="Close and stop">${svg('close')}</button>
         </div>
@@ -126,7 +148,10 @@ export class Player {
           <span class="msg" data-el="msg"></span>
         </div>
       </div>
-      <div class="pill" data-el="pill">${svg('play')}Read from here</div>
+      <div class="pills" data-el="pills">
+        <div class="pill" data-el="pill">${svg('play')}Read from here</div>
+        <div class="pill secondary" data-el="pillspeed">${svg('speed')}Speed read</div>
+      </div>
     `
     this.root.querySelectorAll<HTMLElement>('[data-el]').forEach((e) => (this.els[e.dataset.el!] = e))
     const on = (el: string, fn: () => void) => this.els[el].addEventListener('click', (e) => (e.stopPropagation(), fn()))
@@ -138,6 +163,9 @@ export class Player {
     on('close', () => actions.close())
     on('settings', () => actions.openSettings())
     on('pill', () => actions.readFrom())
+    on('pillspeed', () => actions.speedReadFrom())
+    on('fastread', () => actions.toggleFastRead())
+    on('speedread', () => actions.speedRead())
     this.els.voice.addEventListener('change', () => actions.setVoice((this.els.voice as HTMLSelectElement).value))
     // Keep page shortcuts from firing while using the player
     this.root.addEventListener('keydown', (e) => e.stopPropagation())
@@ -219,15 +247,19 @@ export class Player {
     else msg.textContent = ''
   }
 
+  setFastRead(on: boolean) {
+    this.els.fastread.setAttribute('aria-pressed', String(on))
+  }
+
   showPill(x: number, y: number) {
-    const pill = this.els.pill
-    pill.classList.add('show')
-    const w = pill.offsetWidth
-    pill.style.left = `${Math.max(8, Math.min(innerWidth - w - 8, x - w / 2))}px`
-    pill.style.top = `${Math.max(8, y - 48)}px`
+    const pills = this.els.pills
+    pills.classList.add('show')
+    const w = pills.offsetWidth
+    pills.style.left = `${Math.max(8, Math.min(innerWidth - w - 8, x - w / 2))}px`
+    pills.style.top = `${Math.max(8, y - 48)}px`
   }
 
   hidePill() {
-    this.els.pill.classList.remove('show')
+    this.els.pills.classList.remove('show')
   }
 }
