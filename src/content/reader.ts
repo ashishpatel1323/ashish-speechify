@@ -282,8 +282,11 @@ export class Reader {
   }
 
   offsetOf(node: Node, offset: number): number {
-    const seg = this.segments.find((g) => g.node === node && offset >= g.nodeStart && offset <= g.nodeStart + (g.end - g.start))
-    return seg ? seg.start + (offset - seg.nodeStart) : -1
+    const pieces = this.segments.filter((g) => g.node === node)
+    if (!pieces.length) return -1
+    // A point inside skipped clutter ([1], a URL) belongs to the next piece that is read
+    const seg = pieces.find((g) => offset <= g.nodeStart + (g.end - g.start)) ?? pieces[pieces.length - 1]
+    return seg.start + Math.max(0, Math.min(offset - seg.nodeStart, seg.end - seg.start))
   }
 
   offsetAtPoint(x: number, y: number): number {

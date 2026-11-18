@@ -18,6 +18,8 @@ declare global {
   interface Window {
     __ashSpeechify?: boolean
   }
+  /** True only in the test build. */
+  const __TEST__: boolean
 }
 
 const SKIP_WORDS = 10
@@ -269,6 +271,8 @@ function main() {
     roots = indexed.roots
     ensurePlayer()
     reader.load(indexed)
+    // Lets the tests see exactly what will be read
+    if (__TEST__) document.documentElement.setAttribute('data-ash-text', reader.fullText)
     setFastRead(!!settings?.fastRead)
     if (msg.mode === 'fast-read') toggleFastRead()
     else if (msg.mode === 'speed-read') mute(0, true)

@@ -3,6 +3,7 @@
  * live page so it can be highlighted), or the current selection.
  */
 import { Readability } from '@mozilla/readability'
+import { FOOTNOTE_SECTION, isFootnoteLink, isFootnoteMarker, isSkippedLine, speechRemovals } from '../speechclean'
 
 export interface Segment {
   node: Text
@@ -22,7 +23,10 @@ export interface Indexed {
 const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'SVG', 'BUTTON', 'TEXTAREA', 'INPUT', 'SELECT', 'TEMPLATE', 'IFRAME', 'MATH'])
 const BLOCK_TAGS =
   /^(P|DIV|LI|H[1-6]|BLOCKQUOTE|PRE|TD|TH|SECTION|ARTICLE|HEADER|FOOTER|FIGURE|FIGCAPTION|UL|OL|TABLE|TR|BR|HR|DT|DD|MAIN|ASIDE|NAV)$/
-const READ_BLOCKS = 'h1,h2,h3,h4,h5,h6,p,li,blockquote,pre,dd,dt,td,th,figcaption'
+// Reading keeps to paragraphs, headings and lists: no captions or tables (as in Feeder)
+const READ_BLOCKS = 'h1,h2,h3,h4,h5,h6,p,li,blockquote,pre,dd,dt'
+// In a whole page these are clutter; a selection reads whatever was selected
+const PAGE_CLUTTER_TAGS = new Set(['FIGCAPTION', 'TABLE', 'CAPTION'])
 const CHROME = 'nav,header,footer,aside,[role=navigation],[role=banner],[role=contentinfo],[aria-hidden=true],[hidden]'
 const PLAYER_HOST = 'ash-speechify-player'
 
@@ -34,19 +38,57 @@ function visible(el: Element): boolean {
   return cs.visibility !== 'hidden' && cs.display !== 'none'
 }
 
-function skipped(node: Node, stopAt: Node | null): boolean {
-  for (let p = node.parentElement; p && p !== stopAt; p = p.parentElement) {
-    if (SKIP_TAGS.has(p.tagName) || p.tagName.toLowerCase() === PLAYER_HOST || p.getAttribute('aria-hidden') === 'true') return true
+/** Text before `el` in its paragraph, to tell an exponent (10⁶) from a footnote marker. */
+function charBefore(el: Element): string | undefined {
+  for (let n: Node | null = el; n; n = n.parentNode) {
+    for (let p = n.previousSibling; p; p = p.previousSibling) {
+      const t = p.textContent
+      if (t) return t[t.length - 1]
+    }
+    if (n.parentElement && BLOCK_TAGS.test(n.parentElement.tagName)) return undefined
   }
-  return false
+  return undefined
+}
+
+/** A paragraph-like block with no blocks inside, so a credit check never drops a whole short article. */
+function isLeafBlock(el: Element): boolean {
+  if (!BLOCK_TAGS.test(el.tagName)) return false
+  for (const c of el.children) if (BLOCK_TAGS.test(c.tagName) && c.tagName !== 'BR') return false
+  return true
+}
+
+/**
+ * Elements skipped with everything inside them: page chrome, and clutter like footnote markers,
+ * footnote sections, photo credits and copyright lines (Feeder's read-aloud rules).
+ */
+function isSkippedElement(el: Element, page: boolean): boolean {
+  if (SKIP_TAGS.has(el.tagName) || el.tagName.toLowerCase() === PLAYER_HOST || el.getAttribute('aria-hidden') === 'true') return true
+  if (page && PAGE_CLUTTER_TAGS.has(el.tagName)) return true
+  const role = el.getAttribute('role')
+  if (role === 'doc-noteref' || role === 'doc-endnotes' || role === 'doc-footnote') return true
+  if (el.id && FOOTNOTE_SECTION.test(el.id)) return true
+  if (el.tagName === 'SUP') return isFootnoteMarker(el.textContent ?? '', !!el.closest('a'), charBefore(el))
+  if (el.tagName === 'A') return isFootnoteLink(el.getAttribute('href') ?? '', el.textContent ?? '')
+  return isLeafBlock(el) && isSkippedLine(el.textContent ?? '')
 }
 
 /** Collects text nodes inside `roots` (in order) into one string with paragraph breaks. */
 function indexNodes(roots: Element[], range?: Range): Indexed {
-  const segments: Segment[] = []
+  const raw: Segment[] = []
   let text = ''
   let lastBlock: Element | null = null
+  const verdicts = new Map<Element, boolean>()
+  const skipped = (n: Node, stopAt: Node | null) => {
+    for (let p = n.parentElement; p && p !== stopAt; p = p.parentElement) {
+      let v = verdicts.get(p)
+      if (v === undefined) verdicts.set(p, (v = isSkippedElement(p, !range)))
+      if (v) return true
+    }
+    return false
+  }
   for (const root of roots) {
+    // A picked block that is itself a credit or copyright line is skipped whole
+    if (!range && isSkippedElement(root, true)) continue
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
       acceptNode: (n) => {
         if (!n.textContent) return NodeFilter.FILTER_REJECT
@@ -71,13 +113,43 @@ function indexNodes(roots: Element[], range?: Range): Indexed {
       lastBlock = block
       const start = text.length
       text += n.textContent!.slice(from, to)
-      segments.push({ node: n, nodeStart: from, start, end: text.length })
+      raw.push({ node: n, nodeStart: from, start, end: text.length })
     }
     // Keep separate roots in separate sentences
     if (text && !/\s$/.test(text)) text += '\n\n'
     lastBlock = null
   }
-  return { text, segments, roots }
+  return dropRemovals(text, raw, roots)
+}
+
+/**
+ * Leaves reference numbers, URLs and citations out of the text that is read; the pieces around
+ * them keep pointing at their text nodes, so highlights and click to read land on the right words.
+ */
+function dropRemovals(text: string, raw: Segment[], roots: Element[]): Indexed {
+  const removed = new Uint8Array(text.length)
+  for (const [s, e] of speechRemovals(text)) removed.fill(1, s, e)
+  const newIndex = new Int32Array(text.length + 1)
+  let kept = ''
+  for (let i = 0; i < text.length; i++) {
+    newIndex[i] = kept.length
+    if (!removed[i]) kept += text[i]
+  }
+  newIndex[text.length] = kept.length
+  const segments: Segment[] = []
+  for (const g of raw) {
+    for (let i = g.start; i < g.end; ) {
+      if (removed[i]) {
+        i++
+        continue
+      }
+      let j = i
+      while (j < g.end && !removed[j]) j++
+      segments.push({ node: g.node, nodeStart: g.nodeStart + (i - g.start), start: newIndex[i], end: newIndex[i] + (j - i) })
+      i = j
+    }
+  }
+  return { text: kept, segments, roots }
 }
 
 /** Blocks of the live page that make up the main article. */
@@ -149,5 +221,5 @@ export function indexSelection(): Indexed | null {
 
 /** Plain text with nothing on the page to highlight (e.g. a selection Chrome told us about). */
 export function indexText(text: string): Indexed {
-  return { text, segments: [], roots: [] }
+  return dropRemovals(text, [], [])
 }

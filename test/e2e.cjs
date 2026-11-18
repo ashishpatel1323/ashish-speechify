@@ -10,7 +10,7 @@ const shots = process.argv[2] || path.resolve(__dirname, '../shots')
 fs.mkdirSync(shots, { recursive: true })
 const server = http.createServer((q, r) => {
   r.setHeader('content-type', 'text/html')
-  r.end(fs.readFileSync(path.join(__dirname, 'article.html')))
+  r.end(fs.readFileSync(path.join(__dirname, q.url.startsWith('/clutter') ? 'clutter.html' : 'article.html')))
 }).listen(8765)
 
 const assert = (c, m) => { if (!c) throw new Error('FAILED: ' + m); console.log('ok -', m) }
@@ -232,6 +232,52 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
   await start('speed-read')
   await sleep(200)
   assert((await shown()) === 'The', `speed read shortcut opens muted at the headline: ${await shown()}`)
+  // Clutter is skipped: footnote markers and sections, [1] refs, URLs, citations, captions, tables, credits
+  await page.goto('http://localhost:8765/clutter')
+  await start('page')
+  await sleep(600)
+  const said = await page.evaluate(() => document.documentElement.getAttribute('data-ash-text'))
+  const flat = said.replace(/\s+/g, ' ').trim()
+  console.log('   read:', JSON.stringify(flat))
+  for (const gone of ['sixteen hours a day.1', '[2]', 'Smith, 2020', 'https://', 'Getty', 'Table 1', 'Kittens', 'Jones', 'Measured in a lab', '©', 'All rights reserved', 'Subscribe', 'Privacy'])
+    assert(!flat.includes(gone), `skips ${JSON.stringify(gone)}`)
+  for (const kept of ['Why cats sleep so much', 'sixteen hours a day. Researchers think this saves energy for hunting.', 'about 102 grams', 'The full study is online at and is free', 'as later work also found.', 'The film (2019) about them was fine'])
+    assert(flat.includes(kept), `keeps ${JSON.stringify(kept)}`)
+  // Highlights and click to read still land on the right words around skipped parts
+  // Jump to "Researchers" (just after the skipped footnote 1), then wait for "hunting" (before the skipped [2])
+  const rp = await page.evaluate(() => {
+    const p = document.querySelector('article p')
+    const t = [...p.childNodes].find((n) => n.nodeType === 3 && n.data.includes('Researchers'))
+    const r = document.createRange()
+    const i = t.data.indexOf('Researchers')
+    r.setStart(t, i + 2); r.setEnd(t, i + 3)
+    const b = r.getBoundingClientRect()
+    return { x: b.x + 1, y: b.y + b.height / 2 }
+  })
+  await page.mouse.click(rp.x, rp.y)
+  await sleep(300)
+  s = await hl('ash-speechify-sentence')
+  assert(s && s.startsWith('Researchers'), `click right after a skipped footnote lands on the next sentence: ${JSON.stringify(s)}`)
+  let found = null
+  for (let i = 0; i < 80 && !found; i++) {
+    const w = await hl('ash-speechify-word')
+    if (w && w.startsWith('hunting')) found = 'hunting'
+    else await sleep(100)
+  }
+  assert(found === 'hunting', 'the word highlight lands on the right word after a skipped footnote')
+  await page.evaluate(() => [...document.querySelectorAll('p')].find((p) => p.textContent.startsWith('Older')).scrollIntoView({ block: 'center' }))
+  await sleep(800)
+  const cp = await page.evaluate(() => {
+    const t = [...document.querySelectorAll('p')].find((p) => p.textContent.startsWith('Older')).firstChild
+    const r = document.createRange(); r.setStart(t, 2); r.setEnd(t, 3)
+    const b = r.getBoundingClientRect()
+    return { x: b.x + 1, y: b.y + b.height / 2 }
+  })
+  await page.mouse.click(cp.x, cp.y)
+  await sleep(500)
+  s = await hl('ash-speechify-sentence')
+  assert(s && s.startsWith('Older cats'), `click to read works on a paragraph with a skipped citation: ${JSON.stringify(s)}`)
+  await page.screenshot({ path: `${shots}/8-clutter.png` })
   console.log('all done')
   await ctx.close()
   server.close()

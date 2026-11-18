@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "ashish-speechify",
   "short_name": "speechify",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Reads any page or selection aloud with a natural voice that runs on your device. Fast read (bold word starts) and speed read (one word at a time) too.",
   "minimum_chrome_version": "116",
   "icons": {

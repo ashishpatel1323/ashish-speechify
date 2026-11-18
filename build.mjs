@@ -7,7 +7,7 @@ const out = test ? 'dist-test' : 'dist'
 rmSync(out, { recursive: true, force: true })
 mkdirSync(`${out}/ort`, { recursive: true })
 
-const common = { bundle: true, minify: !test, sourcemap: test ? 'inline' : false, target: 'chrome116', logLevel: 'info', legalComments: 'none' }
+const common = { define: { __TEST__: String(test) }, bundle: true, minify: !test, sourcemap: test ? 'inline' : false, target: 'chrome116', logLevel: 'info', legalComments: 'none' }
 
 await build({ ...common, entryPoints: { content: 'src/content/index.ts' }, outdir: out, format: 'iife' })
 await build({
