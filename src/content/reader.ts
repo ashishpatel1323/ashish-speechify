@@ -95,6 +95,11 @@ export class Reader {
   /** Height of whatever covers the bottom of the window (the player, the speed read dock). */
   bottomInset = 140
   onSentence: ((i: number) => void) | null = null
+  /** Every word as it's spoken (or followed), as offsets in the text. */
+  onWord: ((start: number, end: number) => void) | null = null
+  private lastWord: Span | null = null
+  /** Where the next play() starts, when the position was set to a word (moveTo). */
+  private resumeOffset: number | null = null
 
   state: ReaderState = { status: 'idle', sentence: 0, sentences: 0, rate: 1, engine: null, error: null }
 
@@ -152,6 +157,27 @@ export class Reader {
   /** Offset where the current sentence starts. */
   get currentOffset() {
     return this.sentences[this.state.sentence]?.start ?? 0
+  }
+
+  /** Offset of the word being spoken (or last spoken), else the sentence start. */
+  get currentWordOffset() {
+    const s = this.sentences[this.state.sentence]
+    if (this.resumeOffset !== null) return this.resumeOffset
+    if (this.lastWord && s && this.lastWord.start >= s.start && this.lastWord.start < s.end) return this.lastWord.start
+    return this.currentOffset
+  }
+
+  /** Moves to sentence `i`: speaks from there when playing, otherwise just marks it. */
+  seek(i: number) {
+    if (!this.sentences.length) return
+    i = Math.max(0, Math.min(this.sentences.length - 1, i))
+    if (this.state.status === 'playing' || this.state.status === 'loading') this.speakFrom(i, null)
+    else {
+      this.halt()
+      this.resumeOffset = null
+      this.set({ status: this.state.status === 'idle' ? 'paused' : this.state.status, sentence: i })
+      this.highlightSentence(i)
+    }
   }
 
   /**
@@ -217,6 +243,7 @@ export class Reader {
     this.halt()
     const i = this.sentenceIndexAt(offset)
     this.set({ status: 'paused', sentence: i })
+    this.resumeOffset = offset
     const s = this.sentences[i]
     const r = s && this.rangeFor(s.start, s.end)
     if (r) {
@@ -316,6 +343,8 @@ export class Reader {
   }
 
   private highlightWord(start: number, end: number) {
+    this.lastWord = { start, end }
+    this.onWord?.(start, end)
     const hl = highlights()
     if (!hl) return
     const r = this.rangeFor(start, end)
@@ -333,6 +362,7 @@ export class Reader {
 
   play(fromOffset?: number) {
     if (!this.sentences.length) return
+    if ((fromOffset === undefined || fromOffset < 0) && this.resumeOffset !== null) fromOffset = this.resumeOffset
     if (fromOffset !== undefined && fromOffset >= 0) {
       this.speakFrom(this.sentenceIndexAt(fromOffset), fromOffset)
       return
@@ -364,6 +394,8 @@ export class Reader {
 
   stop() {
     this.halt()
+    this.resumeOffset = null
+    this.lastWord = null
     this.clearHighlights()
     this.set({ status: 'idle', sentence: 0 })
   }
@@ -374,6 +406,7 @@ export class Reader {
     if (this.state.status === 'playing' || this.state.status === 'loading') this.speakFrom(i, null)
     else {
       this.halt()
+      this.resumeOffset = null
       this.set({ sentence: i })
       this.highlightSentence(i)
     }
@@ -428,6 +461,7 @@ export class Reader {
 
   private speakFrom(index: number, fromOffset: number | null) {
     this.halt()
+    this.resumeOffset = null
     const gen = this.generation
     const sentence = this.sentences[index]
     if (!sentence) {

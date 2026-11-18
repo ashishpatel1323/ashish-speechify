@@ -32,6 +32,8 @@ export interface Settings {
   fastRead: boolean
   /** Speed reading pace, in words per minute. */
   rsvpWpm: number
+  /** Show the big word in the player (follows the voice, or speed reads when muted). */
+  showWord: boolean
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -42,6 +44,7 @@ export const DEFAULT_SETTINGS: Settings = {
   autoScroll: true,
   fastRead: false,
   rsvpWpm: 300,
+  showWord: true,
 }
 
 export async function loadSettings(): Promise<Settings> {

@@ -38,7 +38,7 @@ async function init() {
     $('wpmVal').textContent = `${wpm.value} wpm`
     void saveSettings({ rsvpWpm: Number(wpm.value) })
   }
-  for (const k of ['gpu', 'clickToRead', 'autoScroll', 'fastRead'] as const) {
+  for (const k of ['gpu', 'clickToRead', 'autoScroll', 'fastRead', 'showWord'] as const) {
     const box = $<HTMLInputElement>(k)
     box.checked = settings[k]
     box.onchange = () => saveSettings({ [k]: box.checked })
